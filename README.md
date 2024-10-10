@@ -5,6 +5,12 @@ Welcome to the JEC-ACM Students' Chapter's Hacktoberfest repository for Android 
 ## About Us
 We are a passionate community of tech enthusiasts and developers at JEC-ACM Students' Chapter.
 
+## Project Description
+Project: Android Plant Detection Using GEMINI-AI
+This project is a mobile application that leverages Google's Gemini AI model for image-based search, focusing on plant detection. The app allows users to upload an image, and if it's a plant, the app provides details about the plant. If the image is not of a plant, the app responds with a message saying "No Plant Detected."
+
+NOTE :- API KEY IS PROVIDED INSIDE "ChatData.kt" file
+
 ## About Repo
 This repository hosts open-source Android project that is open for your valuable contributions. By participating in Hacktoberfest with us, you can gain hands-on experience with Android development, learn from fellow contributors, and get experience of open-source contribution.
 
