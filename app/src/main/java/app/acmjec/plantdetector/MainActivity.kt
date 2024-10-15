@@ -1,9 +1,13 @@
 package app.acmjec.plantdetector
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +25,10 @@ import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,6 +55,7 @@ import java.io.File
 /**
  * @author Owais Raza
  */
+
 
 class MainActivity : ComponentActivity() {
 
@@ -68,6 +78,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,6 +129,36 @@ class MainActivity : ComponentActivity() {
 
         val bitmap = getBitmap()
 
+        var cameraPermission by remember { mutableStateOf(isPermissionGranted(this, android.Manifest.permission.CAMERA)) }
+        var galleryPermission by remember { mutableStateOf(isPermissionGranted(this, if (Build.VERSION.SDK_INT < 33) android.Manifest.permission.READ_EXTERNAL_STORAGE else android.Manifest.permission.READ_MEDIA_IMAGES)) }
+
+        var shouldLaunchCamera by remember { mutableStateOf(false) }
+        var shouldLaunchGallery by remember { mutableStateOf(false) }
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { isGranted ->
+            isGranted.forEach { permission, granted ->
+                when (permission) {
+                    android.Manifest.permission.CAMERA -> {
+                        cameraPermission = granted
+                        if (granted && shouldLaunchCamera) {
+                            cameraUri?.let { takePictureLauncher.launch(it) }
+                        }
+                    }
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.READ_MEDIA_IMAGES -> {
+                        galleryPermission = granted
+                        if (granted && shouldLaunchGallery) {
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    }
+                }
+            }
+            shouldLaunchCamera = false
+            shouldLaunchGallery = false
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -145,11 +186,9 @@ class MainActivity : ComponentActivity() {
                     .fillMaxWidth()
                     .padding(bottom = 16.dp, start = 4.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center // Center the row content horizontally
+                horizontalArrangement = Arrangement.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally // Center the image and add photo icon
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     bitmap?.let {
                         Image(
                             modifier = Modifier
@@ -168,15 +207,26 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .size(40.dp)
                                 .clickable {
-                                    imagePicker.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
+                                    if (galleryPermission) {
+                                        imagePicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    } else {
+                                        shouldLaunchGallery = true
+                                        permissionLauncher.launch(
+                                            arrayOf(
+                                                if (Build.VERSION.SDK_INT < 33)
+                                                    android.Manifest.permission.READ_EXTERNAL_STORAGE
+                                                else
+                                                    android.Manifest.permission.READ_MEDIA_IMAGES
+                                            )
+                                        )
+                                    }
                                 },
                             imageVector = Icons.Rounded.AddPhotoAlternate,
                             contentDescription = "Pick Photo",
                             tint = MaterialTheme.colorScheme.primary
                         )
-
 
                         Spacer(modifier = Modifier.width(16.dp))
 
@@ -185,8 +235,15 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .size(40.dp)
                                 .clickable {
-                                    cameraUri?.let {
-                                        takePictureLauncher.launch(it)
+                                    if (cameraPermission) {
+                                        cameraUri?.let {
+                                            takePictureLauncher.launch(it)
+                                        }
+                                    } else {
+                                        shouldLaunchCamera = true
+                                        permissionLauncher.launch(arrayOf(
+                                            android.Manifest.permission.CAMERA
+                                        ))
                                     }
                                 },
                             imageVector = Icons.Rounded.AddAPhoto,
@@ -196,7 +253,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Spacer(modifier = Modifier.width(16.dp)) // Spacing between image and send button
+                Spacer(modifier = Modifier.width(16.dp))
 
                 Icon(
                     modifier = Modifier
@@ -212,6 +269,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
 
     @Composable
     fun UserChatItem(prompt: String, bitmap: Bitmap?) {
@@ -279,4 +337,9 @@ class MainActivity : ComponentActivity() {
 
         return null
     }
+}
+
+fun isPermissionGranted(context: Context,permission:String):Boolean
+{
+    return ContextCompat.checkSelfPermission(context,permission) == PackageManager.PERMISSION_GRANTED
 }
